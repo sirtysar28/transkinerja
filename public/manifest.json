@@ -1,0 +1,25 @@
+{
+    "name": "TransKinerja — Kementerian Transmigrasi RI",
+    "short_name": "TransKinerja",
+    "description": "Aplikasi pencatatan aktivitas, monitoring jam kerja, dan pelaporan kinerja ASN Kementerian Transmigrasi Republik Indonesia.",
+    "start_url": "/dashboard",
+    "display": "standalone",
+    "orientation": "portrait-primary",
+    "background_color": "#0B2A5B",
+    "theme_color": "#12305C",
+    "lang": "id",
+    "icons": [
+        {
+            "src": "/images/favicon.png",
+            "sizes": "64x64",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/images/logo.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        }
+    ]
+}

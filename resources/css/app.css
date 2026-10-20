@@ -1,0 +1,178 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    html { scroll-behavior: smooth; }
+    body { @apply font-sans text-slate-700 bg-navy-50 antialiased; }
+
+    /* Skeleton loading */
+    .skeleton { @apply animate-pulse bg-navy-100/70 rounded; }
+
+    /* Scrollbar halus */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { @apply bg-navy-200 rounded-full; }
+    ::-webkit-scrollbar-thumb:hover { @apply bg-navy-300; }
+}
+
+@layer components {
+    /* ---------- Layout ---------- */
+    .sidebar-link { @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-navy-100/90 hover:bg-white/10 hover:text-white transition-all duration-200; }
+    .sidebar-link.active { @apply bg-white text-navy-800 shadow-card font-semibold; }
+    .sidebar-link .icon { @apply w-5 h-5 shrink-0 transition-transform duration-200; }
+
+    /* ---------- Kartu ---------- */
+    .card { @apply bg-white rounded-2xl shadow-card border border-slate-200/70; }
+    .card-header { @apply px-4 sm:px-5 pt-4 sm:pt-5 pb-3 flex flex-wrap items-center justify-between gap-3; }
+    .card-title { @apply text-[13px] sm:text-sm font-semibold text-navy-900 uppercase tracking-wide; }
+
+    /* ---------- Grafik (ApexCharts) ---------- */
+    .chart-box { @apply w-full min-w-0 -mx-1 px-1; }
+    .chart-box .apexcharts-canvas { margin: 0 auto; }
+    .chart-legend { @apply flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 mt-3; }
+    .chart-legend span { @apply inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500; }
+    .chart-legend i { @apply inline-block w-2.5 h-2.5 rounded-full; }
+
+    /* ---------- Tombol ---------- */
+    .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy-400 focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]; }
+    .btn-primary { @apply btn bg-navy-700 text-white hover:bg-navy-800 shadow-sm; }
+    .btn-secondary { @apply btn bg-white text-navy-700 border border-navy-200 hover:bg-navy-50; }
+    .btn-success { @apply btn bg-emerald-600 text-white hover:bg-emerald-700; }
+    .btn-warning { @apply btn bg-amber-500 text-white hover:bg-amber-600; }
+    .btn-danger { @apply btn bg-rose-600 text-white hover:bg-rose-700; }
+    .btn-ghost { @apply btn text-slate-600 hover:bg-slate-100 hover:text-navy-800; }
+    .btn-sm { @apply px-3 py-1.5 text-xs rounded-lg; }
+
+    /* ---------- Form ---------- */
+    .label { @apply block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5; }
+    .label .req { @apply text-rose-500; }
+    .input, .select, .textarea { @apply w-full rounded-xl border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:border-navy-500 focus:ring-2 focus:ring-navy-200 focus:ring-opacity-60 transition; }
+    .input-error { @apply border-rose-400 focus:border-rose-500 focus:ring-rose-200; }
+    .error-text { @apply text-rose-600 text-xs mt-1 font-medium; }
+    .help-text { @apply text-slate-400 text-xs mt-1; }
+
+    /* ---------- Tabel ----------
+       (tanpa margin negatif agar tidak memicu scroll horizontal halaman di mobile;
+       tabel di dalam kartu cukup digulir sendiri) */
+    .table-wrap { @apply overflow-x-auto; }
+    table.data-table { @apply w-full text-sm; }
+    .data-table thead th { @apply text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200 px-4 py-3 whitespace-nowrap; }
+    .data-table tbody td { @apply px-4 py-3 border-b border-slate-100 align-top; }
+    .data-table tbody tr { @apply bg-white transition-colors hover:bg-navy-50/50; }
+
+    /* ---------- Badge status ---------- */
+    .badge { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold border whitespace-nowrap; }
+    .badge-draft { @apply badge bg-slate-100 text-slate-600 border-slate-200; }
+    .badge-diajukan { @apply badge bg-amber-50 text-amber-700 border-amber-200; }
+    .badge-revisi { @apply badge bg-rose-50 text-rose-700 border-rose-200; }
+    .badge-disetujui { @apply badge bg-emerald-50 text-emerald-700 border-emerald-200; }
+
+    /* ---------- Lain-lain ---------- */
+    .page-title { @apply text-xl md:text-2xl font-bold text-navy-900; }
+    .page-sub { @apply text-sm text-slate-500 mt-0.5; }
+    .stat-value { @apply text-[22px] sm:text-2xl font-bold text-navy-900; }
+    .stat-label { @apply text-[11px] sm:text-xs text-slate-500 font-medium mt-1; }
+
+    /* ---------- Kartu statistik dashboard (animasi + klik) ---------- */
+    .stat-card { @apply card relative block p-4 sm:p-5 overflow-hidden transition-all duration-300 cursor-pointer; animation: stat-in .55s cubic-bezier(.21,1.02,.55,1) both; }
+    .stat-card:hover, .stat-card:focus-visible { @apply -translate-y-1.5 border-navy-300; box-shadow: 0 12px 28px -8px rgb(11 42 91 / .28); }
+    .stat-card:focus-visible { @apply outline-none ring-2 ring-navy-400 ring-offset-1; }
+    .stat-card:active { @apply translate-y-0 scale-[0.98]; }
+    .stat-ikon { @apply w-10 h-10 sm:w-11 sm:h-11 rounded-xl text-white flex items-center justify-center shadow-sm; animation: stat-ikon-pop .6s cubic-bezier(.34,1.56,.64,1) both; transition: transform .3s ease; }
+    .stat-card:hover .stat-ikon { animation: stat-goyang .7s ease-in-out; }
+    .stat-card:focus-visible .stat-ikon { animation: stat-goyang .7s ease-in-out; }
+
+    @keyframes stat-in {
+        from { opacity: 0; transform: translateY(18px) scale(.95); }
+        to   { opacity: 1; transform: translateY(0)  scale(1); }
+    }
+    @keyframes stat-ikon-pop {
+        0%   { opacity: 0; transform: scale(.3) rotate(-14deg); }
+        100% { opacity: 1; transform: scale(1)  rotate(0); }
+    }
+    /* Ikon goyang-goyang saat kartu di-hover */
+    @keyframes stat-goyang {
+        0%, 100% { transform: rotate(0) scale(1); }
+        15% { transform: rotate(-9deg) scale(1.08); }
+        30% { transform: rotate(8deg) scale(1.1); }
+        45% { transform: rotate(-7deg) scale(1.08); }
+        60% { transform: rotate(6deg) scale(1.06); }
+        75% { transform: rotate(-4deg) scale(1.04); }
+        90% { transform: rotate(2deg) scale(1.02); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .stat-card, .stat-ikon { animation: none; }
+        .stat-card:hover { transform: none; }
+        .stat-card:hover .stat-ikon { animation: none; }
+    }
+
+    /* Progress bar loading halaman */
+    #page-loader { @apply fixed top-0 left-0 h-[3px] bg-gradient-to-r from-navy-600 via-navy-400 to-gold-400 z-[100] w-0 opacity-0 transition-all duration-300; }
+    #page-loader.active { @apply w-2/3 opacity-100; }
+
+    /* Toast */
+    .toast { @apply fixed top-4 right-4 z-[90] max-w-sm w-[calc(100vw-2rem)] rounded-xl shadow-lg border px-4 py-3 text-sm font-medium flex items-start gap-3 transition-all duration-300 translate-x-[120%] opacity-0; }
+    .toast.show { @apply translate-x-0 opacity-100; }
+
+    /* Dropdown */
+    .dropdown-menu { @apply absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-card border border-slate-200/70 py-1.5 z-50 hidden origin-top-right; }
+    .dropdown-menu.open { @apply block; }
+    .dropdown-item { @apply flex items-start gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-navy-50 hover:text-navy-800 transition; }
+
+    /* Navigasi bawah khusus mobile (4 ikon) — selalu tampil, hanya di layar kecil */
+    .bottom-nav { @apply fixed bottom-0 inset-x-0 z-30 md:hidden bg-white/95 backdrop-blur border-t border-slate-200 flex items-stretch justify-around px-1 pt-1;
+                  padding-bottom: env(safe-area-inset-bottom, 0px); box-shadow: 0 -4px 16px -8px rgb(11 42 91 / .18); }
+    .bottom-nav-item { @apply flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl text-[10px] font-semibold text-slate-500 hover:text-navy-800 hover:bg-navy-50/60 transition-colors; }
+    .bottom-nav-item.aktif { @apply text-navy-700; }
+    .bottom-nav-item .ikon { @apply w-5 h-5 transition-transform; }
+    .bottom-nav-item.aktif .ikon { @apply -translate-y-0.5 scale-110; }
+    .bottom-nav-item .titik-aktif { @apply block w-1 h-1 rounded-full bg-navy-500; }
+
+    /* Sidebar mini (ikon saja) */
+    #sidebar { transition: width .25s ease, transform .3s ease; }
+    #sidebar.sidebar-mini { width: 5rem !important; }
+    #sidebar.sidebar-mini .sidebar-label { display: none; }
+    #sidebar.sidebar-mini .sidebar-link { justify-content: center; padding-left: 0; padding-right: 0; }
+    #sidebar.sidebar-mini .sidebar-brand-text { display: none; }
+    #sidebar.sidebar-mini .sidebar-brand { justify-content: center; }
+
+    /* Modal */
+    .modal-root { @apply fixed inset-0 z-[80] flex items-center justify-center p-4; }
+    .modal-root .modal-backdrop { @apply absolute inset-0 bg-navy-950/60 backdrop-blur-sm; }
+    .modal-root .modal-box { @apply relative bg-white rounded-2xl shadow-card w-full max-w-md p-6; }
+
+    /* Tab Pengaturan (satu halaman, tanpa pindah halaman) */
+    .tab-btn { @apply inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-500 rounded-t-xl border-b-2 border-transparent hover:text-navy-700 hover:bg-navy-50/60 transition-colors; }
+    .tab-btn.tab-aktif { @apply text-navy-800 border-navy-700 bg-navy-50; }
+    .tab-btn svg { @apply w-4 h-4; }
+
+    /* Print */
+    @media print {
+        .no-print { display: none !important; }
+        body { background: white !important; }
+        .print-area { box-shadow: none !important; border: none !important; }
+        @page { size: A4 landscape; margin: 12mm; }
+    }
+}
+
+/* ---------- Popup dropdown di layar kecil (mobile) ----------
+   Di mobile, dropdown notifikasi/profil di-anchor right-0 ke tombolnya, sehingga
+   sisi kirinya terpotong keluar layar (tombol profil berada di kanan tombol lonceng).
+   Solusi: jadikan panel position:fixed selebar layar dengan margin 12px di kedua sisi,
+   tepat di bawah header. (Ditaruh di luar @layer agar mengalahkan utility Tailwind.) */
+@media (max-width: 639px) {
+    .dropdown-menu {
+        position: fixed;
+        left: 0.75rem;
+        right: 0.75rem;
+        top: 4.25rem;
+        width: auto;
+        min-width: 0;
+        margin-top: 0;
+        box-shadow: 0 12px 32px -8px rgb(11 42 91 / 0.25);
+    }
+    /* Daftar notifikasi sedikit dipendekkan agar muat di layar kecil */
+    .dropdown-menu .max-h-80 {
+        max-height: 17rem;
+    }
+}
