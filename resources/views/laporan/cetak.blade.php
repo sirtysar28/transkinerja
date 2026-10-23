@@ -44,19 +44,31 @@
                 <p class="text-[11px] text-slate-400">Dihasilkan otomatis oleh aplikasi TransKinerja pada {{ now()->translatedFormat('d F Y, H:i') }}</p>
             </div>
 
-            {{-- Periode & identitas --}}
+            {{-- Periode, ringkasan produktivitas & identitas lengkap --}}
             <div class="grid md:grid-cols-2 gap-6 mb-6">
-                <table class="text-[12px]">
-                    <tr><td class="pr-2 align-top font-semibold text-slate-500 w-28">Bulan</td><td class="align-top w-2">:</td><td>{{ $namaBulan }}</td></tr>
-                    <tr><td class="pr-2 align-top font-semibold text-slate-500">Tahun</td><td class="align-top">:</td><td>{{ $tahun }}</td></tr>
-                    <tr><td class="pr-2 align-top font-semibold text-slate-500">Total Kegiatan</td><td class="align-top">:</td><td>{{ $logs->count() }} kegiatan</td></tr>
-                </table>
+                <div>
+                    <table class="text-[12px]">
+                        <tr><td class="pr-2 align-top font-semibold text-slate-500 w-40">Bulan</td><td class="align-top w-2">:</td><td>{{ $namaBulan }}</td></tr>
+                        <tr><td class="pr-2 align-top font-semibold text-slate-500">Tahun</td><td class="align-top">:</td><td>{{ $tahun }}</td></tr>
+                        <tr><td class="pr-2 align-top font-semibold text-slate-500">Total Kegiatan</td><td class="align-top">:</td><td>{{ $ringkasan['totalKegiatan'] }} kegiatan</td></tr>
+                        <tr><td class="pr-2 align-top font-semibold text-slate-500">Kehadiran (Log Book)</td><td class="align-top">:</td><td>{{ $ringkasan['hariTerisi'] }} / {{ $ringkasan['hariKerja'] }} hari kerja ({{ $ringkasan['persenKehadiran'] }}%)</td></tr>
+                        <tr><td class="pr-2 align-top font-semibold text-slate-500">Total Durasi Jam Kerja</td><td class="align-top">:</td><td>{{ durasi_format($ringkasan['totalDurasiMenit']) }}</td></tr>
+                        <tr><td class="pr-2 align-top font-semibold text-slate-500">Rekap Kategori</td><td class="align-top">:</td><td>@foreach ($ringkasan['rekapJenis'] as $kode => $n)<span class="badge bg-navy-50 text-navy-700 border-navy-100 mr-1">{{ $kode }} = {{ $n }}</span>@endforeach</td></tr>
+                    </table>
+                </div>
                 <table class="text-[12px] w-full">
                     <tr><td class="pr-2 align-top font-semibold text-slate-500 w-40">1. Nama</td><td class="align-top w-2">:</td><td>{{ $pegawai->name }}</td></tr>
-                    <tr><td class="pr-2 align-top font-semibold text-slate-500">2. NIP</td><td class="align-top">:</td><td>{{ $pegawai->nip ?? '-' }}</td></tr>
-                    <tr><td class="pr-2 align-top font-semibold text-slate-500">3. Pangkat/Gol.Ruang</td><td class="align-top">:</td><td>{{ $pegawai->pangkat_golongan ?? '-' }}</td></tr>
-                    <tr><td class="pr-2 align-top font-semibold text-slate-500">4. Jabatan</td><td class="align-top">:</td><td>{{ $pegawai->jabatan ?? '-' }}</td></tr>
+                    <tr><td class="pr-2 align-top font-semibold text-slate-500">2. NIP</td><td class="align-top">:</td><td>{{ nip_format($pegawai->nip) }}</td></tr>
+                    <tr><td class="pr-2 align-top font-semibold text-slate-500">3. Pangkat/Gol.Ruang</td><td class="align-top">:</td><td>{{ $pegawai->pangkat_golongan ?: '-' }}</td></tr>
+                    <tr><td class="pr-2 align-top font-semibold text-slate-500">4. Jabatan</td><td class="align-top">:</td><td>{{ $pegawai->jabatan ?: '-' }}</td></tr>
                     <tr><td class="pr-2 align-top font-semibold text-slate-500">5. Unit Kerja</td><td class="align-top">:</td><td>{{ $pegawai->unitKerja?->nama ?? '-' }}</td></tr>
+                    <tr><td class="pr-2 align-top font-semibold text-slate-500">6. Status Kepegawaian</td><td class="align-top">:</td><td>{{ $pegawai->status_pegawai ?: '-' }}</td></tr>
+                    <tr><td class="pr-2 align-top font-semibold text-slate-500">7. Jenis Kelamin</td><td class="align-top">:</td><td>{{ $pegawai->jenis_kelamin ?: '-' }}</td></tr>
+                    <tr><td class="pr-2 align-top font-semibold text-slate-500">8. Tempat, Tgl Lahir</td><td class="align-top">:</td><td>{{ trim(($pegawai->tempat_lahir ?: '-').($pegawai->tanggal_lahir ? ', '.$pegawai->tanggal_lahir->translatedFormat('d F Y') : '')) }}</td></tr>
+                    <tr><td class="pr-2 align-top font-semibold text-slate-500">9. Agama</td><td class="align-top">:</td><td>{{ $pegawai->agama ?: '-' }}</td></tr>
+                    <tr><td class="pr-2 align-top font-semibold text-slate-500">10. Pendidikan Terakhir</td><td class="align-top">:</td><td>{{ $pegawai->pendidikan_terakhir ?: '-' }}</td></tr>
+                    <tr><td class="pr-2 align-top font-semibold text-slate-500">11. No. Telepon</td><td class="align-top">:</td><td>{{ $pegawai->no_telp ?: '-' }}</td></tr>
+                    <tr><td class="pr-2 align-top font-semibold text-slate-500">12. Email</td><td class="align-top">:</td><td>{{ $pegawai->email ?: '-' }}</td></tr>
                 </table>
             </div>
 
@@ -111,13 +123,13 @@
                     <p class="text-center">Pegawai yang melaporkan,</p>
                     <div class="h-20"></div>
                     <p class="text-center font-bold underline">{{ $pegawai->name }}</p>
-                    <p class="text-center">NIP. {{ $pegawai->nip ?? '-' }}</p>
+                    <p class="text-center">NIP. {{ nip_format($pegawai->nip) }}</p>
                 </div>
                 <div>
                     <p class="text-center">Atasan / Pejabat Penilai Kinerja,</p>
                     <div class="h-20"></div>
                     <p class="text-center font-bold underline">{{ $pegawai->atasan?->name ?? '................................' }}</p>
-                    <p class="text-center">NIP. {{ $pegawai->atasan?->nip ?? '-' }}</p>
+                    <p class="text-center">NIP. {{ nip_format($pegawai->atasan?->nip) }}</p>
                 </div>
             </div>
 

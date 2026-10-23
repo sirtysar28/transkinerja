@@ -21,7 +21,9 @@ class DashboardController extends Controller
             User::ROLE_PEGAWAI => $this->dashboardPegawai($user, $bulan, $tahun),
             User::ROLE_ATASAN => $this->dashboardAtasan($user, $bulan, $tahun),
             User::ROLE_ADMIN_UNIT => $this->dashboardAdminUnit($user, $bulan, $tahun),
-            default => $this->dashboardAdminPusat($user, $bulan, $tahun),
+            // Pimpinan melihat ringkasan kinerja seluruh pegawai (sama seperti Superadmin).
+            User::ROLE_PIMPINAN, User::ROLE_SUPERADMIN => $this->dashboardAdminPusat($user, $bulan, $tahun),
+            default => $this->dashboardPegawai($user, $bulan, $tahun),
         };
 
         return view('dashboard', array_merge($data, [

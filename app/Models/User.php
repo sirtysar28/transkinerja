@@ -14,6 +14,7 @@ class User extends Authenticatable
     public const ROLE_PEGAWAI = 'pegawai';
     public const ROLE_ATASAN = 'atasan';
     public const ROLE_ADMIN_UNIT = 'admin_unit';
+    public const ROLE_PIMPINAN = 'pimpinan';
     public const ROLE_SUPERADMIN = 'superadmin';
 
     /** Alias lama — kini peran tertinggi bernama Superadmin. */
@@ -23,6 +24,7 @@ class User extends Authenticatable
         self::ROLE_PEGAWAI => 'Pegawai ASN',
         self::ROLE_ATASAN => 'Atasan / Pejabat Penilai',
         self::ROLE_ADMIN_UNIT => 'Admin Unit Kerja',
+        self::ROLE_PIMPINAN => 'Pimpinan',
         self::ROLE_SUPERADMIN => 'Superadmin',
     ];
 
@@ -30,7 +32,8 @@ class User extends Authenticatable
         self::ROLE_PEGAWAI => 1,
         self::ROLE_ATASAN => 2,
         self::ROLE_ADMIN_UNIT => 3,
-        self::ROLE_SUPERADMIN => 4,
+        self::ROLE_PIMPINAN => 4,
+        self::ROLE_SUPERADMIN => 5,
     ];
 
     /** Level pendidikan (kolom LEVEL PENDIDIKAN pada format Data Dashboard). */
@@ -116,6 +119,12 @@ class User extends Authenticatable
     public function isAdminPusat(): bool
     {
         return $this->role === self::ROLE_SUPERADMIN;
+    }
+
+    /** Pimpinan & Superadmin dapat melihat laporan kinerja seluruh pegawai. */
+    public function lihatSemuaPegawai(): bool
+    {
+        return in_array($this->role, [self::ROLE_PIMPINAN, self::ROLE_SUPERADMIN], true);
     }
 
     /**
@@ -251,7 +260,9 @@ class User extends Authenticatable
 
     /**
      * Cakupan pegawai yang dapat dipantau user ini:
-     * pegawai -> diri sendiri; atasan -> bawahan; admin unit -> satu unit; admin pusat -> semua.
+     * pegawai -> diri sendiri; atasan -> bawahan; admin unit -> satu unit;
+     * pimpinan & superadmin -> seluruh pegawai.
+     * Gunakan dari instance: $user->cakupanPegawai() (pemanggilan statik tidak tahu user aktif).
      */
     public function scopeCakupanPegawai($query)
     {
@@ -259,7 +270,8 @@ class User extends Authenticatable
             self::ROLE_PEGAWAI => $query->where('users.id', $this->id),
             self::ROLE_ATASAN => $query->where(fn ($q) => $q->where('users.id', $this->id)->orWhere('atasan_id', $this->id)),
             self::ROLE_ADMIN_UNIT => $query->where(fn ($q) => $q->where('users.id', $this->id)->orWhere('unit_kerja_id', $this->unit_kerja_id)),
-            default => $query,
+            self::ROLE_PIMPINAN, self::ROLE_SUPERADMIN => $query,
+            default => $query->where('users.id', $this->id),
         };
     }
 }

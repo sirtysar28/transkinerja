@@ -23,7 +23,7 @@ class MonitoringController extends Controller
         $akhir = $awal->copy()->endOfMonth();
         $batas = min($akhir, today());
 
-        $pegawai = User::cakupanPegawai()->where('is_aktif', true)
+        $pegawai = $user->cakupanPegawai()->where('is_aktif', true)
             ->with('unitKerja')->orderBy('name')->get();
 
         // Hari kerja efektif sampai hari ini (untuk % kelengkapan)
@@ -42,9 +42,9 @@ class MonitoringController extends Controller
             return (object) compact('p', 'total', 'disetujui', 'menunggu', 'revisi', 'draft', 'hariTerisi', 'durasi');
         });
 
-        // Perbandingan antar unit (admin pusat & admin unit)
+        // Perbandingan antar unit (pimpinan, admin unit & superadmin)
         $perUnit = collect();
-        if (in_array($user->role, [User::ROLE_ADMIN_UNIT, User::ROLE_SUPERADMIN], true)) {
+        if (in_array($user->role, [User::ROLE_ADMIN_UNIT, User::ROLE_PIMPINAN, User::ROLE_SUPERADMIN], true)) {
             $unitQuery = UnitKerja::where('is_aktif', true);
             if ($user->role === User::ROLE_ADMIN_UNIT) {
                 $unitQuery->where('id', $user->unit_kerja_id);

@@ -60,8 +60,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/presensi/clock-out', [PresensiController::class, 'clockOut'])->name('presensi.clockOut');
     });
 
-    // Log Book (pegawai & atasan mencatat aktivitas sendiri)
-    Route::middleware('role:pegawai,atasan,admin_unit,superadmin')->prefix('logbook')->name('logbook.')->group(function () {
+    // Log Book (pegawai, atasan, admin unit & pimpinan mencatat aktivitas sendiri)
+    Route::middleware('role:pegawai,atasan,admin_unit,pimpinan,superadmin')->prefix('logbook')->name('logbook.')->group(function () {
         Route::get('/', [LogBookController::class, 'index'])->name('index');
         Route::get('/buat', [LogBookController::class, 'create'])->name('create');
         Route::post('/', [LogBookController::class, 'store'])->name('store');
@@ -90,8 +90,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/{persetujuan}/buka-kembali', [PersetujuanController::class, 'bukaKembali'])->name('bukaKembali');
     });
 
-    // Monitoring & analitik
-    Route::middleware('role:atasan,admin_unit,superadmin')->get('/monitoring', [MonitoringController::class, 'index'])->name('monitoring.index');
+    // Monitoring & analitik (atasan, admin unit, pimpinan, superadmin)
+    Route::middleware('role:atasan,admin_unit,pimpinan,superadmin')->get('/monitoring', [MonitoringController::class, 'index'])->name('monitoring.index');
 
     // Pegawai & unit kerja (admin unit & admin pusat)
     Route::middleware('role:admin_unit,superadmin')->group(function () {

@@ -17,7 +17,7 @@
         $menu[] = ['label' => 'Unit Kerja', 'route' => route('unit-kerja.index'), 'icon' => 'building', 'active' => request()->routeIs('unit-kerja.*')];
         $menu[] = ['label' => 'Manajemen User', 'route' => route('manajemen-user.index'), 'icon' => 'key', 'active' => request()->routeIs('manajemen-user.*')];
     }
-    if (in_array($user->role, [\App\Models\User::ROLE_ATASAN, \App\Models\User::ROLE_ADMIN_UNIT, \App\Models\User::ROLE_SUPERADMIN])) {
+    if (in_array($user->role, [\App\Models\User::ROLE_ATASAN, \App\Models\User::ROLE_ADMIN_UNIT, \App\Models\User::ROLE_PIMPINAN, \App\Models\User::ROLE_SUPERADMIN])) {
         $menu[] = ['label' => 'Monitoring', 'route' => route('monitoring.index'), 'icon' => 'chart', 'active' => request()->routeIs('monitoring.*')];
     }
     if ($user->role === \App\Models\User::ROLE_SUPERADMIN) {
@@ -34,8 +34,8 @@
         <div class="flex-1 flex items-center gap-3 px-4 py-4 sidebar-brand">
             <img src="{{ asset('images/logo.png') }}" alt="Logo Kementerian Transmigrasi" class="w-10 h-10 rounded-lg bg-white/90 p-0.5 shrink-0"/>
             <div class="sidebar-brand-text leading-tight">
-                <p class="text-white font-extrabold text-sm tracking-wide">TransKinerja</p>
-                <p class="text-navy-200/80 text-[10px]">Kemen. Transmigrasi RI</p>
+                <p class="text-white font-extrabold text-sm tracking-wide">TRANSKINERJA</p>
+                <p class="text-navy-200/80 text-[10px]">Kementerian Transmigrasi RI</p>
             </div>
         </div>
         <button id="btn-sidebar-close" class="lg:hidden text-navy-200 hover:text-white px-4" aria-label="Tutup menu">

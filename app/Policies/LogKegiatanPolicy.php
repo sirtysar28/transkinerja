@@ -62,6 +62,11 @@ class LogKegiatanPolicy
             return true;
         }
 
+        // Pimpinan dapat melihat laporan kinerja seluruh pegawai.
+        if ($user->role === User::ROLE_PIMPINAN) {
+            return true;
+        }
+
         if ($user->role === User::ROLE_ATASAN) {
             return $log->user->atasan_id === $user->id;
         }

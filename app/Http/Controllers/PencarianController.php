@@ -30,7 +30,7 @@ class PencarianController extends Controller
 
             // Pegawai (untuk atasan/admin)
             if ($user->role !== User::ROLE_PEGAWAI) {
-                $hasil->pegawai = User::cakupanPegawai()->where('is_aktif', true)
+                $hasil->pegawai = $user->cakupanPegawai()->where('is_aktif', true)
                     ->where(fn ($qq) => $qq->where('name', 'like', "%{$q}%")
                         ->orWhere('nip', 'like', "%{$q}%")
                         ->orWhere('jabatan', 'like', "%{$q}%"))

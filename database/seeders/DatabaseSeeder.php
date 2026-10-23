@@ -91,6 +91,19 @@ class DatabaseSeeder extends Seeder
             'is_aktif' => true,
         ]);
 
+        // Pimpinan: melihat laporan kinerja seluruh pegawai (update 23 Okt 2026)
+        User::updateOrCreate(['username' => 'pimpinan'], [
+            'name' => 'Dr. H. Muhammad Yusuf, M.Si.',
+            'nip' => '197001152000121002',
+            'email' => 'pimpinan@transmigrasi.go.id',
+            'password' => 'password',
+            'role' => User::ROLE_PIMPINAN,
+            'pangkat_golongan' => 'Pembina Utama Muda / IV/c',
+            'jabatan' => 'Kepala BPPMT Banjarmasin',
+            'unit_kerja_id' => $bppmt->id,
+            'is_aktif' => true,
+        ]);
+
         // Pegawai contoh sesuai lampiran Lapkin Agustus 2026
         $anggit = User::updateOrCreate(['username' => 'anggit'], [
             'name' => 'Anggit Tinarbuka AW, S.K.M, S.E',

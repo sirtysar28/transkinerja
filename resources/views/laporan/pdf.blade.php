@@ -6,7 +6,7 @@
     <title>Formulir Laporan Bulanan — {{ $pegawai->name }}</title>
     <style>
         * { box-sizing: border-box; }
-        body { font-family: sans-serif; font-size: 10px; color: #1e293b; margin: 0; }
+        body { font-family: 'DejaVu Sans', sans-serif; font-size: 10px; color: #1e293b; margin: 0; }
         .kop { width: 100%; border-bottom: 2.5px solid #0E2A37; padding-bottom: 6px; margin-bottom: 10px; }
         .kop table { width: 100%; border-collapse: collapse; }
         .kop td { vertical-align: middle; padding: 0; }
@@ -52,23 +52,33 @@
         </table>
     </div>
 
-    {{-- Periode & identitas --}}
+    {{-- Periode, ringkasan produktivitas & identitas lengkap pegawai --}}
     <table class="blok-atas"><tr>
-        <td>
+        <td style="width: 46%;">
             <table class="meta">
                 <tr><td class="label">Bulan</td><td>: {{ $namaBulan }}</td></tr>
                 <tr><td class="label">Tahun</td><td>: {{ $tahun }}</td></tr>
-                <tr><td class="label">Total Kegiatan</td><td>: {{ $logs->count() }} kegiatan</td></tr>
+                <tr><td class="label">Total Kegiatan</td><td>: {{ $ringkasan['totalKegiatan'] }} kegiatan</td></tr>
+                <tr><td class="label">Kehadiran (Log Book)</td><td>: {{ $ringkasan['hariTerisi'] }} / {{ $ringkasan['hariKerja'] }} hari kerja ({{ $ringkasan['persenKehadiran'] }}%)</td></tr>
+                <tr><td class="label">Total Durasi Jam Kerja</td><td>: {{ durasi_format($ringkasan['totalDurasiMenit']) }}</td></tr>
+                <tr><td class="label">Rekap Kategori</td><td>: @foreach ($ringkasan['rekapJenis'] as $kode => $n){{ $kode }} = {{ $n }}@if (!$loop->last) · @endif @endforeach</td></tr>
             </table>
         </td>
         <td>
             <p class="judul-identitas">Identitas Pegawai</p>
             <table class="identitas">
                 <tr><td class="label">1. Nama</td><td>: {{ $pegawai->name }}</td></tr>
-                <tr><td class="label">2. NIP</td><td>: {{ $pegawai->nip ?? '-' }}</td></tr>
-                <tr><td class="label">3. Pangkat/Gol.Ruang</td><td>: {{ $pegawai->pangkat_golongan ?? '-' }}</td></tr>
-                <tr><td class="label">4. Jabatan</td><td>: {{ $pegawai->jabatan ?? '-' }}</td></tr>
+                <tr><td class="label">2. NIP</td><td>: {{ nip_format($pegawai->nip) }}</td></tr>
+                <tr><td class="label">3. Pangkat/Gol.Ruang</td><td>: {{ $pegawai->pangkat_golongan ?: '-' }}</td></tr>
+                <tr><td class="label">4. Jabatan</td><td>: {{ $pegawai->jabatan ?: '-' }}</td></tr>
                 <tr><td class="label">5. Unit Kerja</td><td>: {{ $pegawai->unitKerja?->nama ?? '-' }}</td></tr>
+                <tr><td class="label">6. Status Kepegawaian</td><td>: {{ $pegawai->status_pegawai ?: '-' }}</td></tr>
+                <tr><td class="label">7. Jenis Kelamin</td><td>: {{ $pegawai->jenis_kelamin ?: '-' }}</td></tr>
+                <tr><td class="label">8. Tempat, Tgl Lahir</td><td>: {{ trim(($pegawai->tempat_lahir ?: '-').($pegawai->tanggal_lahir ? ', '.$pegawai->tanggal_lahir->translatedFormat('d F Y') : '')) }}</td></tr>
+                <tr><td class="label">9. Agama</td><td>: {{ $pegawai->agama ?: '-' }}</td></tr>
+                <tr><td class="label">10. Pendidikan Terakhir</td><td>: {{ $pegawai->pendidikan_terakhir ?: '-' }}</td></tr>
+                <tr><td class="label">11. No. Telepon</td><td>: {{ $pegawai->no_telp ?: '-' }}</td></tr>
+                <tr><td class="label">12. Email</td><td>: {{ $pegawai->email ?: '-' }}</td></tr>
             </table>
         </td>
     </tr></table>
@@ -118,13 +128,13 @@
             Pegawai yang melaporkan,
             <div class="spasi"></div>
             <span class="nama">{{ $pegawai->name }}</span><br/>
-            NIP. {{ $pegawai->nip ?? '-' }}
+            NIP. {{ nip_format($pegawai->nip) }}
         </td>
         <td>
             Atasan / Pejabat Penilai Kinerja,
             <div class="spasi"></div>
             <span class="nama">{{ $pegawai->atasan?->name ?? '................................' }}</span><br/>
-            NIP. {{ $pegawai->atasan?->nip ?? '-' }}
+            NIP. {{ nip_format($pegawai->atasan?->nip) }}
         </td>
     </tr></table>
 

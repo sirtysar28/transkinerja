@@ -20,10 +20,10 @@ Aplikasi **pencatatan aktivitas harian (Log Book), pemantauan jam kerja, dan rek
 
 1. **Login modern** — branding Kementerian di kiri, form di kanan, tombol intip password, **CAPTCHA 5 karakter sisi server** (berlaku 10 menit, sekali pakai), throttling percobaan login, login via **username atau NIP**. **Verifikasi dua langkah (OTP)** opsional: setelah password benar, kode OTP dikirim ke email — bisa **ON/OFF** oleh Superadmin di *Pengaturan → OTP & Keamanan* (panjang kode, masa berlaku, dan batas percobaan dapat diatur; kode disimpan hanya sebagai hash SHA-256).
 2. **Dashboard per peran** — Pegawai · Atasan · Admin Unit · Superadmin dengan ringkasan, tren aktivitas, dan status pelaporan.
-3. **Log Book harian** — tanggal, kegiatan, output, pengguna/penerima, **jenis tugas KS/KP/KT** (multi-pilih), jam mulai–selesai (durasi otomatis), **bukti dukung** (lampiran berkas), riwayat pengajuan.
+3. **Log Book harian** — tanggal, kegiatan, output, pengguna/penerima, **jenis tugas KS/KP/KT** (centang, **hanya satu kategori per kegiatan**), jam mulai–selesai (durasi otomatis), **bukti dukung** (lampiran berkas), riwayat pengajuan, **filter Tanggal/Rentang Tanggal** di samping filter bulan.
 4. **Alur persetujuan** — `Draft → Diajukan → Disetujui`, dengan `Perlu Revisi` + catatan atasan. **Laporan disetujui tidak dapat diedit langsung** — hanya melalui mekanisme *buka kembali* oleh Superadmin (pejabat berwenang), lengkap dengan **audit trail**.
 5. **Presensi & jam kerja** — clock-in/clock-out harian + rekap total jam kerja.
-6. **Rekapitulasi & laporan** — harian/bulanan, filter pegawai/jenis tugas/output/status, **cetak Formulir Laporan Bulanan** identik file Excel Lapkin, **ekspor Excel (.xlsx)**.
+6. **Rekapitulasi & laporan** — harian/bulanan, filter pegawai/jenis tugas/output/status, **cetak Formulir Laporan Bulanan** identik file Excel Lapkin, **ekspor Excel (.xlsx)** — **identitas pegawai lengkap** (NIP terformat, pangkat, jabatan, status kepegawaian, TTL, agama, pendidikan, kontak) + **Ringkasan Produktivitas Bulanan** (total kegiatan, kehadiran hari terisi, total durasi jam kerja, rekap kategori).
 7. **Monitoring & analitik** — perbandingan kinerja antar pegawai & antar unit, kelengkapan pelaporan (% hari terisi), rekap jam kerja.
 8. **Pengelolaan data** — pegawai ASN (NIP, pangkat/golongan, jabatan, atasan, unit), unit kerja berjenjang, hak akses 4 level, **filter dropdown multi-centang** (unit kerja, status, peran, jenis kelamin, pendidikan, kemampuan renang & bahasa Inggris).
 9. **Import Excel format Data Dashboard** — berkas *Data Dashboard.xlsx* instansi diunggah langsung tanpa template; NIP ada → diperbarui, NIP baru → ditambahkan; unit kerja (Es. II/I) otomatis dibuat; tanggal fleksibel (`12/1/2029`, `01 April 2028`, `2024-01-31`); **BUP kosong dihitung otomatis** (60 th Eselon I/II & Fungsional Madya, selain itu 58 th); kolom tambahan **Kemampuan Renang** & **Kemampuan Bahasa Inggris**; baris tidak valid dilewati & dilaporkan.
@@ -38,8 +38,9 @@ Aplikasi **pencatatan aktivitas harian (Log Book), pemantauan jam kerja, dan rek
 |---|---|---|
 | 1 | **Pegawai ASN** | Mengelola Log Book sendiri, bukti dukung, mengajukan & memperbaiki revisi, unduh laporan pribadi |
 | 2 | **Atasan / Pejabat Penilai** | Memeriksa, merevisi, menyetujui laporan bawahan; memantau tim |
-| 3 | **Admin Unit Kerja** | Kelola pegawai unit, status pelaporan & rekap unit |
-| 4 | **Superadmin** | Referensi organisasi, hak akses, **manajemen user & akses login**, periode & format pelaporan, data lintas unit, audit log, buka kembali laporan |
+| 3 | **Admin Bagian / Unit Kerja** | Kelola pegawai unit, status pelaporan & rekap unit |
+| 4 | **Pimpinan** | **Melihat laporan kinerja seluruh pegawai** + monitoring lintas unit (tanpa menyetujui/mengelola) |
+| 5 | **Superadmin** | Referensi organisasi, hak akses, **manajemen user & akses login**, periode & format pelaporan, data lintas unit, audit log, buka kembali laporan |
 
 ## Menjalankan Aplikasi
 
@@ -87,8 +88,16 @@ tests/Feature/            # 11 uji otomatis (login+captcha, alur persetujuan, RB
 ## Pengujian
 
 ```bash
-php artisan test   # 36 test, 239 assertions
+php artisan test   # 39 test, 254 assertions
 ```
+
+### Pembaruan 23 Oktober 2026 (dokumen "Update tgl 23 Oktober 2026")
+
+1. **Kategori pekerjaan KS/KP/KT hanya satu pilihan** per kegiatan (checkbox satu centang; data lama yang ganda dirapikan otomatis via migrasi).
+2. **Role baru: Pimpinan** — dapat melihat laporan kinerja & monitoring seluruh pegawai; akun pegawai/admin bagian/superadmin tetap sesuai kewenangan.
+3. **Judul aplikasi** di samping logo menjadi **TRANSKINERJA** ⏎ **Kementerian Transmigrasi RI** (sidebar & halaman login).
+4. **Filter Log Book Tanggal/Rentang Tanggal** (Dari–Sampai) di samping filter bulan.
+5. **Perbaikan unduhan laporan**: tanda "√" pada PDF kini ter-render benar (font DejaVu), ekspor Excel identitas pegawai dilengkapi (NIP terformat 8-6-1-3, status kepegawaian, TTL, agama, pendidikan, kontak) + blok **Ringkasan Produktivitas Bulanan** (produktivitas, kehadiran, target kerja), dan kompatibilitas PHP 8.5 pada penulisan kolom Excel.
 
 Mencakup: CAPTCHA salah/dibenarkan, login username & NIP, **alur OTP lengkap (ON/OFF, kode salah/kedaluwarsa, kirim ulang, hash tersimpan)**, **menu Manajemen User (halaman, mapping peran, cabut/aktifkan akses, anti-lockout superadmin, hanya superadmin)**, alur lengkap Log Book (draft → diajukan → revisi → setujui), larangan edit laporan disetujui/diajukan, RBAC semua modul, seluruh halaman, ekspor Excel, presensi.
 

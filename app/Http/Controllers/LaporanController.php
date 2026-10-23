@@ -26,7 +26,7 @@ class LaporanController extends Controller
         $tahun = (int) $request->query('tahun', now()->year);
 
         // Pegawai yang dapat dipilih sesuai kewenangan
-        $pegawaiOptions = User::cakupanPegawai()->where('is_aktif', true)
+        $pegawaiOptions = $user->cakupanPegawai()->where('is_aktif', true)
             ->orderBy('name')->get();
 
         $pegawaiTerpilih = $request->query('pegawai');
@@ -113,12 +113,29 @@ class LaporanController extends Controller
         $tahun = (int) $request->query('tahun', now()->year);
 
         $pegawaiId = (int) $request->query('pegawai', $user->id);
-        $pegawai = User::cakupanPegawai()->where('is_aktif', true)->findOrFail($pegawaiId);
+        $pegawai = $user->cakupanPegawai()->where('is_aktif', true)->findOrFail($pegawaiId);
 
         $logs = LogKegiatan::with(['output', 'taskTypes', 'lampirans'])
             ->where('user_id', $pegawai->id)
             ->whereYear('tanggal', $tahun)->whereMonth('tanggal', $bulan)
             ->orderBy('tanggal')->orderBy('jam_mulai')->get();
+
+        // Ringkasan bulanan: produktivitas, kehadiran (hari terisi), dan capaian target kerja.
+        $awalBulan = now()->create($tahun, $bulan, 1)->startOfDay();
+        $akhirBulan = $awalBulan->copy()->endOfMonth();
+        $batasHari = min($akhirBulan, today());
+        $hariKerja = 0;
+        for ($c = $awalBulan->copy(); $c->lte($batasHari); $c->addDay()) {
+            if (! $c->isWeekend()) {
+                $hariKerja++;
+            }
+        }
+        $hariTerisi = $logs->where('tanggal', '<=', $batasHari)->unique(fn ($l) => $l->tanggal->toDateString())->count();
+        $totalDurasi = $logs->sum(fn ($l) => $l->durasiMenit() ?? 0);
+        $rekapJenis = [];
+        foreach (TaskType::orderBy('kode')->get() as $t) {
+            $rekapJenis[$t->kode] = $logs->filter(fn ($l) => $l->taskTypes->contains('id', $t->id))->count();
+        }
 
         return [
             'pegawai' => $pegawai,
@@ -129,6 +146,14 @@ class LaporanController extends Controller
             'tahun' => $tahun,
             'namaBulan' => PeriodeLaporan::namaBulan($bulan),
             'taskTypes' => TaskType::orderBy('kode')->get(),
+            'ringkasan' => [
+                'totalKegiatan' => $logs->count(),
+                'hariTerisi' => $hariTerisi,
+                'hariKerja' => $hariKerja,
+                'persenKehadiran' => $hariKerja > 0 ? round($hariTerisi * 100 / $hariKerja) : 0,
+                'totalDurasiMenit' => $totalDurasi,
+                'rekapJenis' => $rekapJenis,
+            ],
         ];
     }
 
@@ -198,10 +223,17 @@ class LaporanController extends Controller
 
         $identitas = [
             ['Nama', $pegawai->name],
-            ['NIP', $pegawai->nip ?? '-'],
-            ['Pangkat/Gol.Ruang', $pegawai->pangkat_golongan ?? '-'],
-            ['Jabatan', $pegawai->jabatan ?? '-'],
+            ['NIP', nip_format($pegawai->nip)],
+            ['Pangkat/Gol.Ruang', $pegawai->pangkat_golongan ?: '-'],
+            ['Jabatan', $pegawai->jabatan ?: '-'],
             ['Unit Kerja', $pegawai->unitKerja?->nama ?? '-'],
+            ['Status Kepegawaian', $pegawai->status_pegawai ?: '-'],
+            ['Jenis Kelamin', $pegawai->jenis_kelamin ?: '-'],
+            ['Tempat, Tanggal Lahir', trim(($pegawai->tempat_lahir ?: '-').($pegawai->tanggal_lahir ? ', '.$pegawai->tanggal_lahir->translatedFormat('d F Y') : ''))],
+            ['Agama', $pegawai->agama ?: '-'],
+            ['Pendidikan Terakhir', $pegawai->pendidikan_terakhir ?: '-'],
+            ['No. Telepon', $pegawai->no_telp ?: '-'],
+            ['Email', $pegawai->email ?: '-'],
         ];
         $row = 7;
         $ws->setCellValue('A'.$row, 'Identitas Pegawai')->getStyle('A'.$row)->getFont()->setBold(true);
@@ -214,6 +246,21 @@ class LaporanController extends Controller
             $row++;
         }
 
+        // Ringkasan produktivitas bulanan (kehadiran, durasi jam kerja, rekap kategori)
+        $row++;
+        $ws->setCellValue('A'.$row, 'Ringkasan Produktivitas Bulanan')->getStyle('A'.$row)->getFont()->setBold(true);
+        $row++;
+        $ringkasan = [
+            ['Total Kegiatan', $data['ringkasan']['totalKegiatan'].' kegiatan'],
+            ['Kehadiran (hari terisi Log Book)', $data['ringkasan']['hariTerisi'].' dari '.$data['ringkasan']['hariKerja'].' hari kerja ('.$data['ringkasan']['persenKehadiran'].'%)'],
+            ['Total Durasi Jam Kerja', durasi_format($data['ringkasan']['totalDurasiMenit'])],
+            ['Rekap Kategori', collect($data['ringkasan']['rekapJenis'])->map(fn ($n, $kode) => "{$kode} = {$n}")->implode(' · ') ?: '-'],
+        ];
+        foreach ($ringkasan as [$label, $nilai]) {
+            $ws->setCellValue('B'.$row, $label)->setCellValue('D'.$row, ':')->setCellValue('E'.$row, $nilai);
+            $row++;
+        }
+
         // Tabel kegiatan
         $row += 1;
         $headerRow = $row;
@@ -223,10 +270,9 @@ class LaporanController extends Controller
         $ws->mergeCells("D{$row}:D".($row + 1))->setCellValue("D{$row}", 'Output');
         $ws->mergeCells("E{$row}:E".($row + 1))->setCellValue("E{$row}", 'Pengguna');
         $ws->mergeCells("F{$row}:H{$row}")->setCellValue("F{$row}", 'Jenis Tugas');
-        $col = 'F';
-        foreach ($taskTypes as $t) {
+        foreach ($taskTypes as $i => $t) {
+            $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(6 + $i); // F, G, H, …
             $ws->setCellValue($col.($row + 1), $t->kode);
-            $col++;
         }
         $ws->getStyle("A{$row}:H".($row + 1))->applyFromArray($head + ['fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'EFF3F9']]]);
 
@@ -242,11 +288,10 @@ class LaporanController extends Controller
                     ->setCellValue("D{$row}", $log->output->nama)
                     ->setCellValue("E{$row}", $log->pengguna);
                 $kodeJenis = $log->taskTypes->pluck('kode');
-                $col = 'F';
-                foreach ($taskTypes as $t) {
+                foreach ($taskTypes as $i => $t) {
+                    $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(6 + $i);
                     $ws->setCellValue($col.$row, $kodeJenis->contains($t->kode) ? '√' : '');
                     $ws->getStyle($col.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                    $col++;
                 }
                 $ws->getStyle("A{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
             }
@@ -278,8 +323,8 @@ class LaporanController extends Controller
         $ws->getStyle("A{$row}")->getFont()->setBold(true)->setUnderline(true);
         $ws->getStyle("F{$row}")->getFont()->setBold(true)->setUnderline(true);
         $row++;
-        $ws->setCellValue("A{$row}", 'NIP. '.($pegawai->nip ?? '-'))
-            ->setCellValue("F{$row}", 'NIP. '.($pegawai->atasan?->nip ?? '-'));
+        $ws->setCellValue("A{$row}", 'NIP. '.nip_format($pegawai->nip))
+            ->setCellValue("F{$row}", 'NIP. '.nip_format($pegawai->atasan?->nip));
 
         $fileName = 'Lapkin_'.$pegawai->username.'_'.$bulan.'_'.$tahun.'.xlsx';
         AuditService::catat('export', 'Laporan', "Ekspor Excel laporan {$pegawai->name} ({$bulan}/{$tahun}).");
@@ -298,7 +343,7 @@ class LaporanController extends Controller
         return match ($user->role) {
             User::ROLE_ATASAN => $query->whereHas('user', fn ($q) => $q->where('atasan_id', $user->id)->orWhere('users.id', $user->id)),
             User::ROLE_ADMIN_UNIT => $query->whereHas('user', fn ($q) => $q->where('unit_kerja_id', $user->unit_kerja_id)),
-            User::ROLE_SUPERADMIN => $query,
+            User::ROLE_PIMPINAN, User::ROLE_SUPERADMIN => $query,
             default => $query->where('user_id', $user->id),
         };
     }

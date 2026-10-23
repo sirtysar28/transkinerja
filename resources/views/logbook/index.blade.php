@@ -5,10 +5,23 @@
 <div class="flex flex-wrap items-end justify-between gap-3">
     <div>
         <h1 class="page-title">Log Book</h1>
-        <p class="page-sub">Pencatatan aktivitas harian — {{ $logs->total() }} kegiatan pada {{ \App\Models\PeriodeLaporan::namaBulan($bulan) }} {{ $tahun }}</p>
+        <p class="page-sub">
+            @if ($pakaiRentang)
+                Pencatatan aktivitas harian — {{ $logs->total() }} kegiatan
+                @if ($dari && $sampai)
+                    pada {{ \Illuminate\Support\Carbon::parse($dari)->translatedFormat('d M Y') }} s.d. {{ \Illuminate\Support\Carbon::parse($sampai)->translatedFormat('d M Y') }}
+                @elseif ($dari)
+                    mulai {{ \Illuminate\Support\Carbon::parse($dari)->translatedFormat('d M Y') }}
+                @else
+                    s.d. {{ \Illuminate\Support\Carbon::parse($sampai)->translatedFormat('d M Y') }}
+                @endif
+            @else
+                Pencatatan aktivitas harian — {{ $logs->total() }} kegiatan pada {{ \App\Models\PeriodeLaporan::namaBulan($bulan) }} {{ $tahun }}
+            @endif
+        </p>
     </div>
     <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-        <x-period-filter :bulan="$bulan" :tahun="$tahun" :extra="['status' => $status, 'q' => $q]"/>
+        <x-period-filter :bulan="$bulan" :tahun="$tahun" :extra="['status' => $status, 'q' => $q, 'dari' => $dari, 'sampai' => $sampai]"/>
         <a href="{{ route('logbook.create') }}" class="btn-primary w-full sm:w-auto justify-center"><x-icon name="plus" class="w-4 h-4"/> Tambah Kegiatan</a>
     </div>
 </div>
@@ -32,11 +45,20 @@
                 @endforeach
             </select>
         </div>
+        <div>
+            <label for="filter-dari" class="label">Dari Tanggal</label>
+            <input type="date" id="filter-dari" name="dari" value="{{ $dari }}" class="input !w-auto"/>
+        </div>
+        <div>
+            <label for="filter-sampai" class="label">Sampai Tanggal</label>
+            <input type="date" id="filter-sampai" name="sampai" value="{{ $sampai }}" class="input !w-auto"/>
+        </div>
         <input type="hidden" name="bulan" value="{{ $bulan }}"/>
         <input type="hidden" name="tahun" value="{{ $tahun }}"/>
         <button class="btn-primary w-full sm:w-auto">Terapkan</button>
         <a href="{{ route('logbook.index') }}" class="btn-ghost w-full sm:w-auto justify-center">Reset</a>
     </form>
+    <p class="help-text mt-2">Filter bulan berlaku bila rentang tanggal kosong; isi <b>Dari</b>/<b>Sampai Tanggal</b> untuk memfilter rentang tertentu.</p>
 </div>
 
 {{-- Daftar kegiatan --}}

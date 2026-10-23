@@ -30,8 +30,8 @@
             <div class="relative flex items-center gap-4">
                 <img src="{{ asset('images/logo.png') }}" alt="Logo Kementerian Transmigrasi" class="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-white/95 p-1 shadow-lg"/>
                 <div>
-                    <p class="font-bold text-lg md:text-xl tracking-wide">TransKinerja</p>
-                    <p class="text-navy-200/90 text-[11px] md:text-xs leading-snug">Kementerian Transmigrasi<br/>Republik Indonesia</p>
+                    <p class="font-bold text-lg md:text-xl tracking-wide">TRANSKINERJA</p>
+                    <p class="text-navy-200/90 text-[11px] md:text-xs leading-snug">Kementerian Transmigrasi RI</p>
                 </div>
             </div>
 
@@ -61,7 +61,7 @@
                 <div class="lg:hidden flex items-center justify-center gap-3 mb-8">
                     <img src="{{ asset('images/logo.png') }}" alt="Logo" class="w-12 h-12 rounded-xl bg-white p-1 shadow"/>
                     <div>
-                        <p class="font-extrabold text-navy-900">TransKinerja</p>
+                        <p class="font-extrabold text-navy-900">TRANSKINERJA</p>
                         <p class="text-[10px] text-slate-500">Kementerian Transmigrasi RI</p>
                     </div>
                 </div>

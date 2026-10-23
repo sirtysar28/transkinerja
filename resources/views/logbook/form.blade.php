@@ -74,11 +74,12 @@
         </div>
 
         <div>
-            <span class="label">Jenis Tugas <span class="req">*</span> <span class="normal-case font-normal text-slate-400">(boleh lebih dari satu)</span></span>
-            <div class="grid sm:grid-cols-3 gap-3">
+            <span class="label">Jenis Tugas <span class="req">*</span> <span class="normal-case font-normal text-slate-400">(pilih salah satu saja)</span></span>
+            <div class="grid sm:grid-cols-3 gap-3" id="grup-jenis-tugas">
                 @foreach ($taskTypes as $t)
                     <label class="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 cursor-pointer hover:border-navy-300 hover:bg-navy-50/50 transition has-[:checked]:border-navy-500 has-[:checked]:bg-navy-50">
                         <input type="checkbox" name="jenis_tugas[]" value="{{ $t->id }}"
+                               data-jenis-tugas
                                @checked(in_array($t->id, old('jenis_tugas', $log->taskTypes->pluck('id')->toArray())))
                                class="w-4 h-4 rounded border-slate-300 text-navy-600 focus:ring-navy-400"/>
                         <span>
@@ -88,6 +89,7 @@
                     </label>
                 @endforeach
             </div>
+            <p class="help-text">Kegiatan strategis (KS), kegiatan pokok (KP), atau kegiatan tambahan (KT) — cukup satu kategori per kegiatan.</p>
             @error('jenis_tugas')<p class="error-text">{{ $message }}</p>@enderror
         </div>
 
@@ -154,4 +156,18 @@
         <a href="{{ route('logbook.index') }}" class="btn-ghost w-full">Batal</a>
     </div>
 </form>
-@endsection
+@stop
+
+@push('scripts')
+    <script>
+        // Kategori pekerjaan KS/KP/KT: hanya satu centang aktif (centang baru menggantikan yang lama).
+        document.addEventListener('change', function (e) {
+            const cb = e.target;
+            if (cb.matches('input[data-jenis-tugas]') && cb.checked) {
+                document.querySelectorAll('input[data-jenis-tugas]').forEach(function (lain) {
+                    if (lain !== cb) lain.checked = false;
+                });
+            }
+        });
+    </script>
+@endpush

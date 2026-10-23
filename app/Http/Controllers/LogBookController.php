@@ -24,10 +24,32 @@ class LogBookController extends Controller
         $status = $request->query('status');
         $q = $request->query('q');
 
+        // Filter tanggal / rentang tanggal (menggantikan filter bulan bila diisi)
+        $dari = $request->query('dari');
+        $sampai = $request->query('sampai');
+        $pakaiRentang = $dari || $sampai;
+        if ($dari && ! \Illuminate\Support\Carbon::canBeCreatedFromFormat($dari, 'Y-m-d')) {
+            $dari = null;
+        }
+        if ($sampai && ! \Illuminate\Support\Carbon::canBeCreatedFromFormat($sampai, 'Y-m-d')) {
+            $sampai = null;
+        }
+
         $query = LogKegiatan::with(['output', 'taskTypes', 'lampirans'])
-            ->where('user_id', $user->id)
-            ->whereYear('tanggal', $tahun)
-            ->whereMonth('tanggal', $bulan);
+            ->where('user_id', $user->id);
+
+        if ($pakaiRentang && ($dari || $sampai)) {
+            $awalBulan = now()->create($tahun, $bulan, 1)->startOfDay();
+            $akhirBulan = $awalBulan->copy()->endOfMonth();
+            $query->whereBetween('tanggal', [
+                $dari ? \Illuminate\Support\Carbon::parse($dari) : $awalBulan,
+                $sampai ? \Illuminate\Support\Carbon::parse($sampai)->endOfDay() : $akhirBulan,
+            ]);
+        } else {
+            $pakaiRentang = false;
+            $query->whereYear('tanggal', $tahun)
+                ->whereMonth('tanggal', $bulan);
+        }
 
         if ($status && array_key_exists($status, LogKegiatan::STATUS_LABEL)) {
             $query->where('status', $status);
@@ -46,6 +68,9 @@ class LogBookController extends Controller
             'tahun' => $tahun,
             'status' => $status,
             'q' => $q,
+            'dari' => $dari,
+            'sampai' => $sampai,
+            'pakaiRentang' => $pakaiRentang,
             'statusOptions' => LogKegiatan::STATUS_LABEL,
         ]);
     }
@@ -151,7 +176,7 @@ class LogBookController extends Controller
     private function prosesAjukan(Request $request, LogKegiatan $log, bool $redirectSendiri = true)
     {
         if (! $log->taskTypes()->exists()) {
-            return back()->with('gagal', 'Pilih minimal satu jenis tugas (KS/KP/KT) sebelum mengajukan.');
+            return back()->with('gagal', 'Pilih satu jenis tugas (KS/KP/KT) sebelum mengajukan.');
         }
 
         // Cek periode pelaporan: jika periode ditutup, pengajuan ditolak.
@@ -213,12 +238,13 @@ class LogBookController extends Controller
             'pengguna' => ['required', 'string', 'max:150'],
             'jam_mulai' => ['nullable', 'date_format:H:i'],
             'jam_selesai' => ['nullable', 'date_format:H:i', 'required_with:jam_mulai'],
-            'jenis_tugas' => ['required', 'array', 'min:1'],
+            'jenis_tugas' => ['required', 'array', 'min:1', 'max:1'],
             'jenis_tugas.*' => ['exists:task_types,id'],
             'lampiran.*' => ['nullable', 'file', 'max:5120', 'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx,ppt,pptx,zip'],
         ], [
             'tanggal.before_or_equal' => 'Tanggal tidak boleh di masa depan.',
-            'jenis_tugas.required' => 'Pilih minimal satu jenis tugas.',
+            'jenis_tugas.required' => 'Pilih salah satu jenis tugas.',
+            'jenis_tugas.max' => 'Jenis tugas hanya boleh dipilih satu: KS, KP, atau KT.',
             'jam_selesai.required_with' => 'Jam selesai wajib diisi bila jam mulai diisi.',
         ]);
     }
