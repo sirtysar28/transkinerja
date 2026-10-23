@@ -140,9 +140,9 @@
                     </form>
                 </div>
 
-                <p class="text-center text-[11px] text-slate-400 mt-6">
+                <!-- <p class="text-center text-[11px] text-slate-400 mt-6">
                     Akun demo: <span class="font-semibold text-slate-500">superadmin / atasan / adminbppmt / anggit</span> — sandi: <span class="font-semibold text-slate-500">password</span>
-                </p>
+                </p> -->
             </div>
         </div>
     </div>

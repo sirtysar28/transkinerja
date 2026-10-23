@@ -42,32 +42,44 @@ class DigitransCekCommand extends Command
             $this->newLine();
             $this->line('Kolom pada tabel <info>' . config('digitrans.tabel') . '</info>:');
             $this->line('  ' . implode(', ', $kolom));
-
-            $this->newLine();
-            $peta = [
-                ['ID', 'id'], ['Username', 'username'], ['NIP', 'nip'],
-                ['Nama', 'nama'], ['Email', 'email'], ['Password', 'password'],
-                ['Jabatan', 'jabatan'], ['Unit kerja', 'unit'], ['Status aktif', 'aktif'],
-            ];
-            $baris = [];
-            foreach ($peta as [$label, $kunci]) {
-                $dipakai = DigitransService::pakaiKolom($kunci);
-                $baris[] = [
-                    $label,
-                    $dipakai ?: '-',
-                    $dipakai ? 'OK' : (config("digitrans.kolom.{$kunci}") ? 'KOLOM TIDAK DITEMUKAN → fitur dilewati' : 'tidak dipakai'),
-                ];
-            }
-            $this->table(['Peran', 'Kolom dipakai', 'Status'], $baris);
-
-            $this->newLine();
-            $this->line('Bila ada mapping "TIDAK DITEMUKAN": buka phpMyAdmin → tabel DigiTrans,');
-            $this->line('lalu set nama kolom aslinya di .env, contoh:');
-            $this->line('  DIGITRANS_KOLOM_NAMA=full_name   (ganti sesuai kolom sebenarnya)');
-        } else {
-            $this->warn('Skema tabel tidak terbaca (information_schema tidak dapat diakses).');
-            $this->warn('Integrasi tetap mencoba memakai mapping .env apa adanya.');
         }
+
+        // Status LEFT JOIN tabel data pegawai
+        $joinAktif = collect((array) config('digitrans.join'))
+            ->pluck('tabel')
+            ->filter(fn ($t) => DigitransService::kolomTersedia($t) !== [])
+            ->implode(', ');
+        $this->newLine();
+        $this->line('Tabel data pegawai tergabung (JOIN): <info>' . ($joinAktif ?: '-') . '</info>');
+
+        // Validasi mapping kolom
+        $this->newLine();
+        $peta = [
+            ['ID', 'id'], ['Username', 'username'], ['NIP', 'nip'],
+            ['Nama', 'nama'], ['Email', 'email'], ['Password', 'password'],
+            ['Jabatan', 'jabatan'], ['Unit kerja', 'unit'], ['Status aktif', 'aktif'],
+            ['Pangkat', 'pangkat'], ['Status kepegawaian', 'status_pegawai'],
+            ['Jenis kelamin', 'jenis_kelamin'], ['Tempat lahir', 'tempat_lahir'],
+            ['Tanggal lahir', 'tanggal_lahir'], ['Agama', 'agama'],
+            ['No. telepon', 'no_telp'], ['TMT jabatan', 'tmt_jabatan'],
+            ['Kenaikan pangkat', 'kenaikan_pangkat'], ['Batas usia pensiun', 'pensiun'],
+            ['Pendidikan', 'pendidikan'],
+        ];
+        $baris = [];
+        foreach ($peta as [$label, $kunci]) {
+            $dipakai = DigitransService::pakaiKolom($kunci);
+            $baris[] = [
+                $label,
+                $dipakai ?: '-',
+                $dipakai ? 'OK' : (config("digitrans.kolom.{$kunci}") ? 'KOLOM/TABEL TIDAK DITEMUKAN → data ini tidak disinkronkan' : 'tidak dipakai'),
+            ];
+        }
+        $this->table(['Peran', 'Kolom dipakai', 'Status'], $baris);
+
+        $this->newLine();
+        $this->line('Bila ada mapping "TIDAK DITEMUKAN": buka phpMyAdmin → tabel DigiTrans,');
+        $this->line('lalu set nama kolom aslinya di .env, contoh:');
+        $this->line('  DIGITRANS_KOLOM_NAMA=employees.full_name   (ganti sesuai kolom sebenarnya)');
 
         return self::SUCCESS;
     }

@@ -13,23 +13,36 @@ use Illuminate\Support\Str;
  * Jembatan integrasi DigiTrans (Biro OSDMRB) — satu server cPanel/MariaDB.
  *
  * Kemampuan:
- *  1. cari()          — cari baris akun di database DigiTrans
+ *  1. cari()          — cari baris akun (JOIN data pegawai) di database DigiTrans
  *  2. autentikasi()   — verifikasi kredensial terhadap DigiTrans lalu
  *                       buat/perbarui (provision) user lokal secara otomatis
  *  3. sinkronPegawai()— tarik seluruh pegawai DigiTrans → perbarui data
- *                       kepegawaian lokal (nama, email, jabatan, unit)
+ *                       kepegawaian lokal (nama, NIP, jabatan, unit, pangkat,
+ *                       status kepegawaian, TTL, agama, pendidikan, TMT, BUP)
  *
- * Kecerdasan skema: nama kolom dibaca dari information_schema — query hanya
- * memakai kolom yang benar-benar ada di tabel DigiTrans, sehingga mapping
- * .env yang keliru tidak bikin error (fitur terkait otomatis dilewati).
+ * Skema asli DigiTrans (terkonfirmasi):
+ *   users(id, name, email, password, employee_id→employees, is_active, otp_*)
+ *   employees(nip, name, position_name, unit_id→units, rank_id→ranks,
+ *             employment_status_id, education_level_id, gender, birth_place,
+ *             birth_date, religion, address, phone, tmt_*, retirement_date, …)
+ *   units(id, name, code) · ranks(id, name) · employment_statuses(id, name)
+ *   education_levels(id, code, name)
+ *
+ * Kecerdasan skema: join & kolom dibaca dari information_schema — query hanya
+ * memakai tabel/kolom yang benar-benar ada, mapping .env yang keliru tidak
+ * bikin error (fitur terkait otomatis dilewati).
  *
  * Prinsip aman: TransKinerja hanya MEMBACA DigiTrans (SELECT saja).
- * Role, atasan, is_aktif, dan password lokal dikelola TransKinerja sendiri.
+ * Role, atasan, dan password lokal dikelola TransKinerja sendiri; status aktif
+ * akun mengikuti DigiTrans (master tunggal).
  */
 class DigitransService
 {
-    /** Cache daftar kolom tabel DigiTrans (null = belum dicek). */
-    private static ?array $kolomCache = null;
+    /** Cache daftar kolom per tabel DigiTrans. */
+    private static array $kolomCache = [];
+
+    /** Cache konfigurasi join aktif (select alias + klausul join). */
+    private static ?array $joinCache = null;
 
     /** Integrasi menyala? */
     public static function aktif(): bool
@@ -38,65 +51,167 @@ class DigitransService
             return false;
         }
 
-        return (bool) config('database.connections.digitrans.database');
+        return (bool) config('database.connections.' . config('digitrans.koneksi') . '.database');
     }
 
-    /** Query builder ke tabel users DigiTrans (read-only). */
-    private static function tabel()
+    /** Koneksi database DigiTrans. */
+    private static function db()
     {
-        return DB::connection(config('digitrans.koneksi'))
-            ->table(config('digitrans.tabel'));
+        return DB::connection(config('digitrans.koneksi'));
     }
 
-    /** Kolom terpasang di config (mentah, tanpa validasi skema). */
-    private static function kolom(string $kunci): ?string
-    {
-        return config("digitrans.kolom.{$kunci}");
-    }
+    // ------------------------------------------------------------------
+    // Skema & mapping kolom
+    // ------------------------------------------------------------------
 
     /**
-     * Kolom yang BENAR-BENAR ada di tabel DigiTrans (via information_schema).
-     * Array kosong = skema tak terbaca → jangan difilter (asumsi valid).
+     * Kolom yang BENAR-BENAR ada pada sebuah tabel DigiTrans (via
+     * information_schema). Array kosong = skema tak terbaca → jangan difilter.
      */
-    public static function kolomTersedia(): array
+    public static function kolomTersedia(?string $tabel = null): array
     {
-        if (self::$kolomCache !== null) {
-            return self::$kolomCache;
+        $tabel ??= config('digitrans.tabel');
+
+        if (isset(self::$kolomCache[$tabel])) {
+            return self::$kolomCache[$tabel];
         }
 
         try {
-            $baris = DB::connection(config('digitrans.koneksi'))->select(
+            $baris = self::db()->select(
                 'SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?',
-                [config('database.connections.' . config('digitrans.koneksi') . '.database'), config('digitrans.tabel')]
+                [config('database.connections.' . config('digitrans.koneksi') . '.database'), $tabel]
             );
 
-            self::$kolomCache = array_map(static fn ($r) => is_object($r) ? ($r->COLUMN_NAME ?? reset($r)) : reset($r), $baris);
+            self::$kolomCache[$tabel] = array_map(static fn ($r) => is_object($r) ? ($r->COLUMN_NAME ?? reset($r)) : reset($r), $baris);
         } catch (\Throwable $e) {
-            Log::warning('Digitrans: gagal baca skema — ' . $e->getMessage());
-            self::$kolomCache = [];
+            Log::warning("Digitrans: gagal baca skema tabel {$tabel} — " . $e->getMessage());
+            self::$kolomCache[$tabel] = [];
         }
 
-        return self::$kolomCache;
+        return self::$kolomCache[$tabel];
+    }
+
+    /** [tabel, kolom] dari nilai mapping ("employees.nip" → ["employees","nip"]). */
+    private static function pecahKolom(string $kunci): array
+    {
+        $nilai = (string) config("digitrans.kolom.{$kunci}");
+        $nilai = trim($nilai);
+
+        if ($nilai === '') {
+            return ['', ''];
+        }
+
+        return str_contains($nilai, '.')
+            ? [substr($nilai, 0, strpos($nilai, '.')), substr($nilai, strpos($nilai, '.') + 1)]
+            : [(string) config('digitrans.tabel'), $nilai];
     }
 
     /**
-     * Kolom config yang bisa dipakai: hanya bila benar-benar ada di tabel
-     * DigiTrans. Mengembalikan null bila kolom tidak ada (fitur dilewati).
+     * Kolom config yang bisa dipakai: hanya bila tabelnya tergabung dalam
+     * query (tabel utama / join aktif) DAN kolomnya benar-benar ada.
      */
     public static function pakaiKolom(string $kunci): ?string
     {
-        $kolom = self::kolom($kunci);
-        if (! $kolom) {
+        [$tabel, $kolom] = self::pecahKolom($kunci);
+        if ($kolom === '') {
             return null;
         }
 
-        $tersedia = self::kolomTersedia();
+        if (! self::tabelTerpakai($tabel)) {
+            return null;
+        }
+
+        $tersedia = self::kolomTersedia($tabel);
         if ($tersedia !== [] && ! in_array($kolom, $tersedia, true)) {
             return null;
         }
 
-        return $kolom;
+        return "{$tabel}.{$kolom}";
     }
+
+    /** Tabel utama atau tabel yang join-nya berhasil divalidasi. */
+    private static function tabelTerpakai(string $tabel): bool
+    {
+        return $tabel === config('digitrans.tabel') || in_array($tabel, self::joinAktif()['tabel'], true);
+    }
+
+    // ------------------------------------------------------------------
+    // Query akun (tabel utama + LEFT JOIN data pegawai)
+    // ------------------------------------------------------------------
+
+    /**
+     * Validasi & bangun join aktif: hanya join yang kedua kolom ON-nya ada.
+     * Hasil cache: ['tabel' => [...], 'select' => [...alias...], 'join' => [...pasangan on...]]
+     */
+    private static function joinAktif(): array
+    {
+        if (self::$joinCache !== null) {
+            return self::$joinCache;
+        }
+
+        $hasil = ['tabel' => [], 'join' => []];
+
+        foreach ((array) config('digitrans.join') as $join) {
+            if (! isset($join['tabel'], $join['on']) || ! is_string($join['on'])) {
+                continue;
+            }
+            if (! str_contains($join['on'], '=')) {
+                continue;
+            }
+
+            [$kiri, $kanan] = array_map('trim', explode('=', $join['on'], 2));
+            $bagian = fn (string $s): array => str_contains($s, '.')
+                ? [substr($s, 0, strpos($s, '.')), substr($s, strpos($s, '.') + 1)]
+                : [(string) config('digitrans.tabel'), $s];
+            [$tKiri, $cKiri] = $bagian($kiri);
+            [$tKanan, $cKanan] = $bagian($kanan);
+
+            $kolomKiri = self::kolomTersedia($tKiri);
+            $kolomKanan = self::kolomTersedia($tKanan);
+            if ($kolomKiri === [] || $kolomKanan === []
+                || ! in_array($cKiri, $kolomKiri, true) || ! in_array($cKanan, $kolomKanan, true)) {
+                continue; // tabel/kolom tidak ada → join dilewati
+            }
+
+            $hasil['tabel'][] = $join['tabel'];
+            $hasil['join'][] = [$join['tabel'], "`{$tKiri}`.`{$cKiri}`", "`{$tKanan}`.`{$cKanan}`"];
+        }
+
+        return self::$joinCache = $hasil;
+    }
+
+    /**
+     * Query builder akun DigiTrans: tabel utama + LEFT JOIN pegawai/referensi,
+     * SELECT hanya kolom mapping dengan alias unik __<kunci> (hindari tabrakan
+     * nama kolom seperti "name" yang ada di banyak tabel).
+     */
+    private static function queryAkun()
+    {
+        $query = self::db()->table(config('digitrans.tabel'));
+        foreach (self::joinAktif()['join'] as [$tabel, $kiri, $kanan]) {
+            $query->leftJoin($tabel, DB::raw($kiri), '=', DB::raw($kanan));
+        }
+
+        $select = [];
+        foreach (array_keys((array) config('digitrans.kolom')) as $kunci) {
+            $kolom = self::pakaiKolom($kunci);
+            if ($kolom) {
+                $titik = strpos($kolom, '.');
+                $tabelKolom = substr($kolom, 0, $titik);
+                $namaKolom = substr($kolom, $titik + 1);
+                $select[] = "`{$tabelKolom}`.`{$namaKolom}` AS `__{$kunci}`";
+            }
+        }
+        if ($select !== []) {
+            $query->selectRaw(implode(', ', $select));
+        }
+
+        return $query;
+    }
+
+    // ------------------------------------------------------------------
+    // Pencarian & autentikasi
+    // ------------------------------------------------------------------
 
     /** Cari satu baris akun DigiTrans berdasar username/NIP/email. */
     public static function cari(string $identifier): ?object
@@ -117,7 +232,7 @@ class DigitransService
         }
 
         try {
-            return self::tabel()
+            return self::queryAkun()
                 ->where(function ($q) use ($kolomUser, $kolomNip, $kolomEmail, $identifier) {
                     if ($kolomUser) {
                         $q->orWhere($kolomUser, $identifier);
@@ -144,17 +259,22 @@ class DigitransService
      */
     public static function verifikasi(?object $akun, string $password): ?string
     {
-        $kolomPassword = self::pakaiKolom('password');
-        if (! $akun || ! $kolomPassword) {
+        if (! $akun) {
             return null;
         }
 
-        $hash = $akun->{$kolomPassword} ?? null;
+        $hash = $akun->{self::kolomAlias('password')} ?? null;
         if (! $hash || ! Hash::check($password, $hash)) {
             return null;
         }
 
         return $hash;
+    }
+
+    /** Nama alias select untuk sebuah kunci mapping (null bila kolom tak dipakai). */
+    private static function kolomAlias(string $kunci): string
+    {
+        return '__' . $kunci;
     }
 
     /**
@@ -178,13 +298,16 @@ class DigitransService
             return null;
         }
 
-        $kolomAktif = self::pakaiKolom('aktif');
-        if ($kolomAktif && isset($akun->{$kolomAktif}) && ! $akun->{$kolomAktif}) {
+        if (! self::nilai($akun, 'aktif', anggapAktif: true)) {
             return null; // akun dimatikan di DigiTrans → tolak
         }
 
         return self::provision($akun, $hash);
     }
+
+    // ------------------------------------------------------------------
+    // Provision (taut/urut akun lokal dari baris DigiTrans)
+    // ------------------------------------------------------------------
 
     /**
      * Buat / tautkan / perbarui user lokal dari baris DigiTrans.
@@ -192,12 +315,11 @@ class DigitransService
      */
     public static function provision(object $akun, ?string $hashLokal = null): ?User
     {
-        $kolomId = self::pakaiKolom('id');
-        if (! $kolomId) {
+        $digitransId = self::nilai($akun, 'id');
+        if ($digitransId === null) {
             return null;
         }
 
-        $digitransId = $akun->{$kolomId};
         $username = self::nilai($akun, 'username');
         $nip = self::nilai($akun, 'nip');
         $email = self::nilai($akun, 'email')
@@ -205,8 +327,7 @@ class DigitransService
 
         // Hash password: hasil verifikasi (mode login) ATAU salinan hash dari baris
         // DigiTrans (mode sync) — password dua aplikasi selalu identik.
-        $kolomPassword = self::pakaiKolom('password');
-        $hash = $hashLokal ?: ($kolomPassword ? ($akun->{$kolomPassword} ?? null) : null);
+        $hash = $hashLokal ?: self::nilai($akun, 'password');
 
         // Prioritas tautan: digitrans_id → username → nip → email (yang belum tertaut)
         $user = User::where('digitrans_id', $digitransId)->first()
@@ -242,10 +363,8 @@ class DigitransService
         $user->email = $user->email ?: $email;
 
         // Kolom password lokal NOT NULL:
-        // - punya hash DigiTrans → samakan (termasuk user lama, agar perubahan
-        //   password di DigiTrans ikut tersinkron ke TransKinerja)
-        // - user baru tanpa hash → password acak tak-tertebak (diganti otomatis
-        //   dari DigiTrans begitu hash-nya tersedia / user login via DigiTrans)
+        // - punya hash DigiTrans → samakan (perubahan password DigiTrans ikut ke sini)
+        // - user baru tanpa hash → password acak tak-tertebak
         if ($hash && $user->password !== $hash) {
             $user->password = $hash;
         } elseif (! $user->password) {
@@ -255,37 +374,101 @@ class DigitransService
         return self::perbaruiData($user, $akun);
     }
 
-    /** Perbarui data kepegawaian (nama/jabatan/unit) — tidak menyentuh role/atasan.
-     *  Status aktif ikut DigiTrans untuk akun yang tertaut (master tunggal). */
+    /**
+     * Perbarui data kepegawaian dari DigiTrans (master tunggal):
+     * nama, jabatan, unit kerja, pangkat, status kepegawaian, jenis kelamin,
+     * TTL, agama, alamat, telepon, pendidikan, TMT jabatan, kenaikan pangkat,
+     * dan batas usia pensiun. Role & atasan TIDAK disentuh — dikelola lokal.
+     * Status aktif akun ikut DigiTrans.
+     */
     private static function perbaruiData(User $user, object $akun): User
     {
         if (config('digitrans.sinkron_data')) {
-            $nama = self::nilai($akun, 'nama');
-            if ($nama) {
-                $user->name = $nama;
+            // Identitas dasar — hanya isi bila DigiTrans punya nilainya
+            foreach ([
+                'name' => 'nama',
+                'jabatan' => 'jabatan',
+                'tempat_lahir' => 'tempat_lahir',
+                'agama' => 'agama',
+                'alamat' => 'alamat',
+                'no_telp' => 'no_telp',
+            ] as $field => $kunci) {
+                $nilai = self::nilai($akun, $kunci);
+                if ($nilai !== null) {
+                    $user->{$field} = $nilai;
+                }
             }
 
-            $jabatan = self::nilai($akun, 'jabatan');
-            if ($jabatan) {
-                $user->jabatan = $jabatan;
+            // Tanggal-tanggal kepegawaian (cast date di model menerima Y-m-d)
+            foreach ([
+                'tanggal_lahir' => 'tanggal_lahir',
+                'tmt_jabatan' => 'tmt_jabatan',
+                'kenaikan_pangkat' => 'kenaikan_pangkat',
+                'batas_usia_pensiun' => 'pensiun',
+            ] as $field => $kunci) {
+                $nilai = self::nilai($akun, $kunci);
+                if ($nilai !== null) {
+                    $user->{$field} = $nilai;
+                }
             }
 
-            $kolomUnit = self::pakaiKolom('unit');
-            if ($kolomUnit) {
-                $namaUnit = $akun->{$kolomUnit} ?? null;
-                if ($namaUnit && trim((string) $namaUnit) !== '') {
-                    $unit = UnitKerja::where('nama', trim((string) $namaUnit))->first();
-                    if ($unit) {
-                        $user->unit_kerja_id = $unit->id;
-                    }
+            // NIP: DigiTrans master — perbarui bila berubah
+            $nip = self::nilai($akun, 'nip');
+            if ($nip !== null) {
+                $user->nip = $nip;
+            }
+
+            // Normalisasi otomatis lewat mutator model:
+            // gender L/P → Laki-laki/Perempuan; PNS/CPNS/PPPK Penuh Waktu → PNS/CPNS/PPPK;
+            // nama jenjang pendidikan → SD..S3
+            foreach ([
+                'jenis_kelamin' => 'jenis_kelamin',
+                'status_pegawai' => 'status_pegawai',
+            ] as $field => $kunci) {
+                $nilai = self::nilai($akun, $kunci);
+                if ($nilai !== null) {
+                    $user->{$field} = $nilai;
+                }
+            }
+
+            $pangkat = self::nilai($akun, 'pangkat');
+            if ($pangkat !== null) {
+                $user->pangkat_golongan = $pangkat;
+            }
+
+            $pendidikan = self::nilai($akun, 'pendidikan');
+            if ($pendidikan !== null) {
+                $user->level_pendidikan = $pendidikan; // dinormalkan mutator
+            }
+
+            // Riwayat pendidikan: education_3 (tertinggi) → 2 → 1
+            $riwayat = self::nilai($akun, 'pendidikan_3')
+                ?? self::nilai($akun, 'pendidikan_2')
+                ?? self::nilai($akun, 'pendidikan_1');
+            if ($riwayat !== null) {
+                $user->pendidikan_terakhir = $riwayat;
+            }
+
+            // Unit kerja: cocokkan berdasar nama, lalu kode; buat bila belum ada
+            $namaUnit = self::nilai($akun, 'unit');
+            $kodeUnit = self::nilai($akun, 'unit_kode');
+            if ($namaUnit !== null || $kodeUnit !== null) {
+                $unit = ($namaUnit ? UnitKerja::where('nama', $namaUnit)->first() : null)
+                    ?? ($kodeUnit ? UnitKerja::where('kode', $kodeUnit)->first() : null)
+                    ?? ($namaUnit ? UnitKerja::firstOrCreate(['nama' => $namaUnit], array_filter(['kode' => $kodeUnit])) : null);
+                if ($unit) {
+                    $user->unit_kerja_id = $unit->id;
                 }
             }
         }
 
         // DigiTrans = master status akun: is_active false → nonaktif di TransKinerja
         $kolomAktif = self::pakaiKolom('aktif');
-        if ($kolomAktif && array_key_exists($kolomAktif, (array) $akun)) {
-            $user->is_aktif = (bool) $akun->{$kolomAktif};
+        if ($kolomAktif) {
+            $aktif = self::nilai($akun, 'aktif');
+            if ($aktif !== null) {
+                $user->is_aktif = (bool) $aktif;
+            }
         }
 
         $user->save();
@@ -293,21 +476,26 @@ class DigitransService
         return $user;
     }
 
-    /** Ambil nilai kolom (dengan validasi keberadaan kolom di skema). */
-    private static function nilai(object $akun, string $kunci): ?string
+    /** Ambil nilai kolom hasil query (alias __kunci), dinormalisasi string/trim. */
+    private static function nilai(object $akun, string $kunci, bool $anggapAktif = false): ?string
     {
-        $kolom = self::pakaiKolom($kunci);
-        if (! $kolom) {
-            return null;
+        if ($anggapAktif && ! self::pakaiKolom($kunci)) {
+            return '1'; // kolom status aktif tak ada di DigiTrans → anggap aktif
         }
-        $isi = $akun->{$kolom} ?? null;
+
+        $isi = $akun->{self::kolomAlias($kunci)} ?? null;
 
         return ($isi !== null && trim((string) $isi) !== '') ? trim((string) $isi) : null;
     }
 
+    // ------------------------------------------------------------------
+    // Sinkronisasi massal
+    // ------------------------------------------------------------------
+
     /**
      * Sinkronisasi massal seluruh pegawai DigiTrans → lokal.
-     * Dipanggil manual (php artisan digitrans:sync) atau via cron cPanel.
+     * Dipanggil manual (php artisan digitrans:sync), tiap 15 menit (scheduler),
+     * atau tombol Sinkron di halaman Pegawai.
      * Satu baris bermasalah (mis. duplikat) TIDAK menghentikan sisanya.
      *
      * @return array{diproses: int, dibuat: int, diperbarui: int, dilewati: int, gagal: int, dinonaktifkan: int}
@@ -320,10 +508,8 @@ class DigitransService
             return $stat;
         }
 
-        $kolomId = self::pakaiKolom('id') ?? 'id';
-
         try {
-            $baris = self::tabel()->get();
+            $baris = self::queryAkun()->get();
         } catch (\Throwable $e) {
             Log::warning('Digitrans: sinkronisasi gagal — ' . $e->getMessage());
 
@@ -343,13 +529,13 @@ class DigitransService
                 }
             } catch (\Throwable $e) {
                 $stat['gagal']++;
-                Log::warning('Digitrans: baris id ' . ($akun->{$kolomId} ?? '?') . ' gagal — ' . $e->getMessage());
+                Log::warning('Digitrans: baris id ' . (self::nilai($akun, 'id') ?? '?') . ' gagal — ' . $e->getMessage());
             }
         }
 
         // Akun yang sudah TIDAK ADA di DigiTrans → nonaktifkan di TransKinerja
         // (tidak dihapus: riwayat kinerja & relasi data tetap utuh)
-        $idDigi = $baris->pluck($kolomId)->filter()->map(fn ($v) => (int) $v)->all();
+        $idDigi = $baris->map(fn ($a) => self::nilai($a, 'id'))->filter()->map(fn ($v) => (int) $v)->all();
         if ($idDigi !== []) {
             $stat['dinonaktifkan'] = User::whereNotNull('digitrans_id')
                 ->whereNotIn('digitrans_id', $idDigi)
@@ -364,7 +550,7 @@ class DigitransService
     public static function tesKoneksi(): bool
     {
         try {
-            return self::tabel()->limit(1)->count() >= 0;
+            return self::db()->table(config('digitrans.tabel'))->limit(1)->count() >= 0;
         } catch (\Throwable $e) {
             Log::warning('Digitrans: koneksi gagal — ' . $e->getMessage());
 

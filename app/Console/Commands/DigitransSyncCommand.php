@@ -46,7 +46,8 @@ class DigitransSyncCommand extends Command
             $stat['diproses'], $stat['dibuat'], $stat['diperbarui'], $stat['gagal']
         ));
 
-        $this->info('Selesai. Catatan: role, atasan, dan status aktif TIDAK diubah — atur di TransKinerja.');
+        $this->info('Selesai. Catatan: role & atasan dikelola TransKinerja; NIP, data');
+        $this->info('kepegawaian, dan status aktif akun otomatis mengikuti DigiTrans.');
 
         return self::SUCCESS;
     }

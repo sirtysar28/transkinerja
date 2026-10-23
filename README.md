@@ -99,6 +99,17 @@ php artisan test   # 39 test, 254 assertions
 4. **Filter Log Book Tanggal/Rentang Tanggal** (Dari–Sampai) di samping filter bulan.
 5. **Perbaikan unduhan laporan**: tanda "√" pada PDF kini ter-render benar (font DejaVu), ekspor Excel identitas pegawai dilengkapi (NIP terformat 8-6-1-3, status kepegawaian, TTL, agama, pendidikan, kontak) + blok **Ringkasan Produktivitas Bulanan** (produktivitas, kehadiran, target kerja), dan kompatibilitas PHP 8.5 pada penulisan kolom Excel.
 
+### Integrasi DigiTrans — akses login & data pegawai mengikuti DigiTrans
+
+Sesuai dokumen update: *"akses login dan data pegawai sama dengan DIGITRANS"*. TransKinerja **hanya membaca** (SELECT) database DigiTrans di server yang sama:
+
+- **Login**: password diverifikasi langsung dari DigiTrans (`users` JOIN `employees`). Pegawai DigiTrans cukup masuk dengan **email / NIP + password DigiTrans** — akun TransKinerja dibuat otomatis (auto-provision) dan password kedua aplikasi selalu identik. Login lokal tetap berlaku bila integrasi dimatikan.
+- **Data pegawai tersinkron lengkap**: NIP, nama, jabatan, unit kerja (dibuat otomatis bila belum ada), pangkat, status kepegawaian (PNS/CPNS/PPPK), jenis kelamin, tempat/tanggal lahir, agama, alamat, telepon, pendidikan, TMT jabatan, kenaikan pangkat, dan batas usia pensiun — semuanya dari tabel `employees` + referensi DigiTrans.
+- **Status aktif akun** mengikuti `users.is_active` DigiTrans (master tunggal); akun yang dihapus di DigiTrans otomatis dinonaktifkan (riwayat kinerja tetap utuh).
+- **Role, atasan, dan OTP** tetap dikelola Superadmin TransKinerja (akun baru otomatis berperan Pegawai).
+- **Sinkronisasi otomatis tiap 15 menit** (Laravel scheduler), tombol **Sinkron DigiTrans** di halaman Pegawai, atau `php artisan digitrans:sync`. Cek koneksi & mapping: `php artisan digitrans:cek`.
+- Mapping tabel/kolom dikelola di `config/digitrans.php` + `.env` (format `tabel.kolom`); kolom/tabel yang tidak ada otomatis dilewati tanpa error.
+
 Mencakup: CAPTCHA salah/dibenarkan, login username & NIP, **alur OTP lengkap (ON/OFF, kode salah/kedaluwarsa, kirim ulang, hash tersimpan)**, **menu Manajemen User (halaman, mapping peran, cabut/aktifkan akses, anti-lockout superadmin, hanya superadmin)**, alur lengkap Log Book (draft → diajukan → revisi → setujui), larangan edit laporan disetujui/diajukan, RBAC semua modul, seluruh halaman, ekspor Excel, presensi.
 
 ## Catatan Kebijakan (dari dokumen workflow)
